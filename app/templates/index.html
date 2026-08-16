@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Learning & Notes Agent</title>
+    
+    <!-- Google Fonts & Tailwind CSS CDN -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Markdown Parser (marked.js), Mermaid.js & FontAwesome Icons -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f6ff',
+                            100: '#e0edff',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            900: '#0f172a',
+                            accent: '#8b5cf6'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body {
+            background: radial-gradient(circle at 50% 0%, #1e1b4b 0%, #0f172a 60%, #090d16 100%);
+            min-height: 100vh;
+        }
+        .glass-card {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .glass-input {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        .glass-input:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
+        }
+        .glow-button {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+            transition: all 0.25s ease;
+        }
+        .glow-button:hover {
+            box-shadow: 0 6px 25px rgba(139, 92, 246, 0.6);
+            transform: translateY(-1px);
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(99, 102, 241, 0.3);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(99, 102, 241, 0.6);
+        }
+    </style>
+</head>
+<body class="text-slate-100 font-sans antialiased selection:bg-indigo-500 selection:text-white flex flex-col min-h-screen">
+
+    <!-- Top Navigation Bar -->
+    <header class="w-full border-b border-white/10 glass-card sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                    <i class="fa-solid fa-brain text-xl text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-indigo-300">
+                        YouTube Learning & Notes Agent
+                    </h1>
+                    <p class="text-xs text-slate-400">Feynman Technique • Active Recall • Mental Models</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <button onclick="openApiKeyModal()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 transition flex items-center gap-2">
+                    <i class="fa-solid fa-key text-amber-400"></i>
+                    <span id="apiKeyBtnText">Configure Gemini API Key</span>
+                </button>
+                <button onclick="toggleHistoryDrawer()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-950/60 hover:bg-indigo-900/60 border border-indigo-500/30 text-indigo-300 transition flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                    <span>Past Notes</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- Left Column: Input Form & Progress (4 cols) -->
+        <div class="lg:col-span-4 flex flex-col gap-6">
+            
+            <!-- Video URL Input Card -->
+            <div class="glass-card rounded-2xl p-6 shadow-xl relative overflow-hidden">
+                <div class="absolute -top-12 -right-12 w-32 h-32 bg-indigo-600/10 rounded-full blur-2xl pointer-events-none"></div>
+                
+                <h2 class="text-base font-semibold text-white flex items-center gap-2 mb-4">
+                    <i class="fa-brands fa-youtube text-red-500 text-lg"></i>
+                    Video Learning Input
+                </h2>
+                
+                <form id="noteForm" onsubmit="handleGenerateNotes(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1.5">YouTube Video URL or ID</label>
+                        <div class="relative">
+                            <input type="text" id="videoUrl" required
+                                placeholder="https://www.youtube.com/watch?v=..." 
+                                class="w-full glass-input rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 outline-none transition pr-10">
+                            <button type="button" onclick="pasteClipboard()" title="Paste from clipboard" class="absolute right-3 top-3 text-slate-400 hover:text-indigo-400 transition">
+                                <i class="fa-regular fa-clipboard"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1.5">
+                            Custom Focus Area <span class="text-slate-500">(Optional)</span>
+                        </label>
+                        <input type="text" id="customFocus"
+                            placeholder="e.g. Focus on memory allocation & garbage collection" 
+                            class="w-full glass-input rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 outline-none transition">
+                    </div>
+
+                    <button type="submit" id="submitBtn" class="w-full glow-button rounded-xl py-3 text-sm font-semibold text-white flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        <span>Generate Learning Sheet</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Progress Status Widget -->
+            <div id="progressCard" class="glass-card rounded-2xl p-6 hidden shadow-xl border-indigo-500/20">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs font-semibold text-indigo-400 uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-spinner fa-spin text-indigo-400"></i> Processing Video
+                    </span>
+                    <span id="progressPercent" class="text-xs font-mono text-slate-400">25%</span>
+                </div>
+                <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden mb-4">
+                    <div id="progressBar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-2 rounded-full transition-all duration-500 w-1/4"></div>
+                </div>
+                <p id="progressText" class="text-xs text-slate-300 font-mono">Fetching video metadata & transcript...</p>
+            </div>
+
+            <!-- Active Video Card Preview -->
+            <div id="videoPreviewCard" class="glass-card rounded-2xl p-5 hidden">
+                <div class="relative rounded-xl overflow-hidden mb-3 aspect-video bg-black/40 border border-white/5">
+                    <img id="previewThumbnail" src="" alt="Thumbnail" class="w-full h-full object-cover">
+                    <div class="absolute bottom-2 right-2 bg-black/80 px-2 py-0.5 rounded text-[10px] font-mono text-slate-200" id="previewDuration">00:00</div>
+                </div>
+                <h3 id="previewTitle" class="text-sm font-semibold text-white line-clamp-2 mb-1">Video Title</h3>
+                <p id="previewChannel" class="text-xs text-slate-400 flex items-center gap-1.5">
+                    <i class="fa-regular fa-circle-user text-indigo-400"></i>
+                    <span>Channel Name</span>
+                </p>
+            </div>
+            
+        </div>
+
+        <!-- Right Column: Note Sheet Content Tabs (8 cols) -->
+        <div class="lg:col-span-8 flex flex-col">
+            
+            <!-- Empty State Placeholder -->
+            <div id="emptyState" class="glass-card rounded-2xl p-12 text-center flex flex-col items-center justify-center my-auto min-h-[450px]">
+                <div class="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mb-4">
+                    <i class="fa-solid fa-graduation-cap text-3xl text-indigo-400"></i>
+                </div>
+                <h3 class="text-lg font-bold text-white mb-2">Ready to Deep-Learn Any YouTube Video</h3>
+                <p class="text-xs text-slate-400 max-w-md mb-6 leading-relaxed">
+                    Paste a YouTube link to CS concepts, system design, AI papers, or science videos. The AI agent will construct Feynman intuitive notes, timestamp links, mental model diagrams, and flashcards.
+                </p>
+                <div class="flex flex-wrap items-center justify-center gap-2">
+                    <button onclick="loadSampleVideo('https://www.youtube.com/watch?v=dQw4w9WgXcQ')" class="text-xs bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700/50 transition">
+                        Try Sample Video
+                    </button>
+                </div>
+            </div>
+
+            <!-- Notes Sheet Display Dashboard -->
+            <div id="notesDashboard" class="glass-card rounded-2xl hidden flex flex-col overflow-hidden shadow-2xl">
+                
+                <!-- Dashboard Header & Tabs -->
+                <div class="border-b border-white/10 bg-slate-900/50 p-4 sm:p-6 pb-0">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                        <div>
+                            <span class="text-[10px] font-bold uppercase tracking-wider text-indigo-400 bg-indigo-950/80 border border-indigo-500/30 px-2.5 py-1 rounded-full">
+                                Feynman Study Sheet
+                            </span>
+                            <h2 id="noteTitle" class="text-xl font-bold text-white mt-2 line-clamp-2">Study Sheet Title</h2>
+                            <p id="noteMeta" class="text-xs text-slate-400 mt-1">Generated on 2026-08-16</p>
+                        </div>
+                        
+                        <!-- Export Actions -->
+                        <div class="flex items-center gap-2">
+                            <button onclick="copyMarkdown()" title="Copy Markdown to Clipboard" class="px-3 py-2 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 transition flex items-center gap-1.5">
+                                <i class="fa-regular fa-copy text-indigo-400"></i>
+                                <span>Copy Markdown</span>
+                            </button>
+                            <button onclick="downloadMarkdown()" title="Download Obsidian .md file" class="px-3 py-2 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition flex items-center gap-1.5">
+                                <i class="fa-solid fa-download"></i>
+                                <span>Obsidian (.md)</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Navigation Tabs -->
+                    <nav class="flex space-x-1 sm:space-x-4 border-b border-transparent overflow-x-auto text-xs font-medium">
+                        <button onclick="switchTab('tabFeynman')" id="btnTabFeynman" class="tab-btn py-3 px-4 rounded-t-xl border-b-2 border-indigo-500 text-white bg-slate-800/60 flex items-center gap-2">
+                            <i class="fa-solid fa-lightbulb text-amber-400"></i> Intuition & Summary
+                        </button>
+                        <button onclick="switchTab('tabChapters')" id="btnTabChapters" class="tab-btn py-3 px-4 rounded-t-xl border-b-2 border-transparent text-slate-400 hover:text-white flex items-center gap-2">
+                            <i class="fa-solid fa-list-ol text-indigo-400"></i> Timestamps & Chapters
+                        </button>
+                        <button onclick="switchTab('tabDiagrams')" id="btnTabDiagrams" class="tab-btn py-3 px-4 rounded-t-xl border-b-2 border-transparent text-slate-400 hover:text-white flex items-center gap-2">
+                            <i class="fa-solid fa-diagram-project text-purple-400"></i> Mental Models
+                        </button>
+                        <button onclick="switchTab('tabFlashcards')" id="btnTabFlashcards" class="tab-btn py-3 px-4 rounded-t-xl border-b-2 border-transparent text-slate-400 hover:text-white flex items-center gap-2">
+                            <i class="fa-solid fa-layer-group text-emerald-400"></i> Active Recall
+                        </button>
+                        <button onclick="switchTab('tabMarkdown')" id="btnTabMarkdown" class="tab-btn py-3 px-4 rounded-t-xl border-b-2 border-transparent text-slate-400 hover:text-white flex items-center gap-2">
+                            <i class="fa-solid fa-code text-cyan-400"></i> Raw Markdown
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Tab Contents Container -->
+                <div class="p-6 overflow-y-auto max-h-[650px] space-y-6">
+                    
+                    <!-- Tab 1: Feynman & Summary -->
+                    <div id="tabFeynman" class="tab-content block space-y-6">
+                        <!-- TL;DR Box -->
+                        <div class="p-4 rounded-xl bg-gradient-to-r from-indigo-950/60 to-purple-950/60 border border-indigo-500/30">
+                            <span class="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Core Thesis / One-Sentence Summary</span>
+                            <p id="summaryText" class="text-sm font-semibold text-slate-100 mt-1 leading-relaxed"></p>
+                        </div>
+
+                        <!-- Feynman ELI5 Explanation -->
+                        <div>
+                            <h3 class="text-sm font-bold text-white flex items-center gap-2 mb-3">
+                                <i class="fa-solid fa-heart-pulse text-red-400"></i> Feynman Intuition ("Explain Like I'm 5")
+                            </h3>
+                            <div id="feynmanContent" class="text-xs text-slate-300 leading-relaxed bg-slate-900/60 p-5 rounded-xl border border-white/5 whitespace-pre-line space-y-3">
+                            </div>
+                        </div>
+
+                        <!-- Key Terms Grid -->
+                        <div>
+                            <h3 class="text-sm font-bold text-white flex items-center gap-2 mb-3">
+                                <i class="fa-solid fa-book-bookmark text-amber-400"></i> Key Concepts & Terminology
+                            </h3>
+                            <div id="vocabGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 2: Timestamps & Chapters -->
+                    <div id="tabChapters" class="tab-content hidden space-y-4">
+                        <div id="chaptersContainer" class="space-y-4">
+                        </div>
+                    </div>
+
+                    <!-- Tab 3: Mental Models -->
+                    <div id="tabDiagrams" class="tab-content hidden space-y-6">
+                        <div id="diagramsContainer" class="space-y-6">
+                        </div>
+                    </div>
+
+                    <!-- Tab 4: Active Recall -->
+                    <div id="tabFlashcards" class="tab-content hidden space-y-4">
+                        <div class="text-xs text-slate-400 bg-slate-900/50 p-3 rounded-lg border border-white/5 flex items-center gap-2">
+                            <i class="fa-solid fa-circle-info text-emerald-400"></i>
+                            <span>Test your memory! Try to answer out loud before expanding the hint and answer.</span>
+                        </div>
+                        <div id="quizContainer" class="grid grid-cols-1 gap-4">
+                        </div>
+                    </div>
+
+                    <!-- Tab 5: Raw Markdown -->
+                    <div id="tabMarkdown" class="tab-content hidden">
+                        <pre><code id="rawMarkdownContent" class="text-xs font-mono text-slate-300 bg-slate-950 p-5 rounded-xl border border-white/10 block overflow-x-auto whitespace-pre-wrap"></code></pre>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- History Drawer (Slide-over Modal) -->
+    <div id="historyDrawer" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden transition-opacity">
+        <div class="absolute right-0 top-0 bottom-0 w-full max-w-md glass-card border-l border-white/10 p-6 flex flex-col shadow-2xl">
+            <div class="flex items-center justify-between pb-4 border-b border-white/10">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left text-indigo-400"></i> Past Note Sheets
+                </h3>
+                <button onclick="toggleHistoryDrawer()" class="text-slate-400 hover:text-white text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div id="historyList" class="flex-1 overflow-y-auto py-4 space-y-3">
+                <!-- History Items dynamically rendered -->
+            </div>
+        </div>
+    </div>
+
+    <!-- API Key Config Modal -->
+    <div id="apiKeyModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-card rounded-2xl p-6 w-full max-w-md border border-white/10 shadow-2xl">
+            <h3 class="text-base font-bold text-white flex items-center gap-2 mb-2">
+                <i class="fa-solid fa-key text-amber-400"></i> Gemini API Key Configuration
+            </h3>
+            <p class="text-xs text-slate-400 mb-4">
+                Enter your Google Gemini API key. You can get one for free at <a href="https://aistudio.google.com/app/api-keys" target="_blank" class="text-indigo-400 underline">Google AI Studio</a>.
+            </p>
+            <input type="password" id="modalApiKey" placeholder="AIzaSy..." class="w-full glass-input rounded-xl px-4 py-2.5 text-xs text-white outline-none mb-4">
+            <div class="flex justify-end gap-2">
+                <button onclick="closeApiKeyModal()" class="px-4 py-2 text-xs font-medium text-slate-300 hover:text-white">Cancel</button>
+                <button onclick="saveApiKey()" class="glow-button px-4 py-2 text-xs font-semibold text-white rounded-xl">Save Key</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- App JavaScript Logic -->
+    <script>
+        let currentNoteData = null;
+        let storedApiKey = localStorage.getItem('GEMINI_API_KEY') || '';
+
+        // Initialize Mermaid
+        mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (storedApiKey) {
+                document.getElementById('apiKeyBtnText').innerText = 'Gemini API Key Set ✓';
+            }
+            loadHistory();
+        });
+
+        async function pasteClipboard() {
+            try {
+                const text = await navigator.clipboard.readText();
+                if (text) document.getElementById('videoUrl').value = text;
+            } catch (err) {
+                console.log('Clipboard paste not allowed or empty');
+            }
+        }
+
+        function openApiKeyModal() {
+            document.getElementById('modalApiKey').value = storedApiKey;
+            document.getElementById('apiKeyModal').classList.remove('hidden');
+        }
+
+        function closeApiKeyModal() {
+            document.getElementById('apiKeyModal').classList.add('hidden');
+        }
+
+        function saveApiKey() {
+            storedApiKey = document.getElementById('modalApiKey').value.trim();
+            if (storedApiKey) {
+                localStorage.setItem('GEMINI_API_KEY', storedApiKey);
+                document.getElementById('apiKeyBtnText').innerText = 'Gemini API Key Set ✓';
+            } else {
+                localStorage.removeItem('GEMINI_API_KEY');
+                document.getElementById('apiKeyBtnText').innerText = 'Configure Gemini API Key';
+            }
+            closeApiKeyModal();
+        }
+
+        function toggleHistoryDrawer() {
+            const drawer = document.getElementById('historyDrawer');
+            drawer.classList.toggle('hidden');
+            if (!drawer.classList.contains('hidden')) loadHistory();
+        }
+
+        async function handleGenerateNotes(e) {
+            e.preventDefault();
+            const url = document.getElementById('videoUrl').value.strip ? document.getElementById('videoUrl').value.strip() : document.getElementById('videoUrl').value.trim();
+            const customFocus = document.getElementById('customFocus').value.trim();
+
+            if (!url) return;
+
+            // UI Reset
+            document.getElementById('emptyState').classList.add('hidden');
+            document.getElementById('notesDashboard').classList.add('hidden');
+            document.getElementById('videoPreviewCard').classList.add('hidden');
+            
+            const progressCard = document.getElementById('progressCard');
+            progressCard.classList.remove('hidden');
+            updateProgress(20, 'Extracting YouTube metadata & subtitles...');
+
+            try {
+                updateProgress(50, 'Analyzing transcript with Gemini 2.5 Feynman Agent...');
+
+                const response = await fetch('/api/generate-notes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        url: url,
+                        custom_focus: customFocus || null,
+                        api_key: storedApiKey || null
+                    })
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.detail || 'Failed to generate note sheet');
+                }
+
+                updateProgress(90, 'Formatting mental models & flashcards...');
+                const data = await response.json();
+                
+                updateProgress(100, 'Complete!');
+                setTimeout(() => {
+                    progressCard.classList.add('hidden');
+                    renderNoteSheet(data);
+                }, 400);
+
+            } catch (err) {
+                progressCard.classList.add('hidden');
+                alert('Error: ' + err.message);
+                document.getElementById('emptyState').classList.remove('hidden');
+            }
+        }
+
+        function updateProgress(percent, text) {
+            document.getElementById('progressBar').style.width = percent + '%';
+            document.getElementById('progressPercent').innerText = percent + '%';
+            document.getElementById('progressText').innerText = text;
+        }
+
+        function renderNoteSheet(data) {
+            currentNoteData = data;
+            const sheet = data.study_sheet;
+
+            // Render Video Preview Card
+            document.getElementById('previewThumbnail').src = data.thumbnail_url;
+            document.getElementById('previewTitle').innerText = data.title;
+            document.getElementById('previewChannel').querySelector('span').innerText = data.channel;
+            document.getElementById('previewDuration').innerText = data.duration_str;
+            document.getElementById('videoPreviewCard').classList.remove('hidden');
+
+            // Render Dashboard Header
+            document.getElementById('noteTitle').innerText = data.title;
+            document.getElementById('noteMeta').innerText = `${data.channel} • Generated ${data.generated_at}`;
+
+            // Tab 1: Summary & Feynman
+            document.getElementById('summaryText').innerText = sheet.one_sentence_summary;
+            document.getElementById('feynmanContent').innerText = sheet.feynman_explanation;
+
+            // Vocab Grid
+            const vocabGrid = document.getElementById('vocabGrid');
+            vocabGrid.innerHTML = sheet.vocabulary.map(v => `
+                <div class="p-4 rounded-xl bg-slate-900/60 border border-white/5 hover:border-indigo-500/30 transition">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-bold text-indigo-300 font-mono">${v.term}</span>
+                    </div>
+                    <p class="text-xs text-slate-300 mb-2">${v.simple_definition}</p>
+                    <div class="text-[11px] text-amber-300/90 bg-amber-950/30 border border-amber-500/20 px-2.5 py-1 rounded-lg">
+                        <i class="fa-solid fa-lightbulb text-amber-400 mr-1"></i> ${v.analogy}
+                    </div>
+                </div>
+            `).join('');
+
+            // Tab 2: Chapters
+            const chaptersContainer = document.getElementById('chaptersContainer');
+            chaptersContainer.innerHTML = sheet.chapters.map(c => {
+                // Generate YouTube timestamp URL link
+                const seconds = parseTimestampSeconds(c.timestamp);
+                const tsUrl = `${data.url}&t=${seconds}s`;
+                
+                return `
+                    <div class="p-5 rounded-xl bg-slate-900/60 border border-white/5">
+                        <div class="flex items-center justify-between mb-2">
+                            <h4 class="text-sm font-bold text-white">${c.title}</h4>
+                            <a href="${tsUrl}" target="_blank" class="text-xs font-mono text-indigo-400 hover:text-indigo-300 bg-indigo-950/80 px-2.5 py-1 rounded-lg border border-indigo-500/30 flex items-center gap-1 transition">
+                                <i class="fa-regular fa-circle-play"></i> ${c.timestamp}
+                            </a>
+                        </div>
+                        <p class="text-xs text-slate-300 mb-3 leading-relaxed">${c.explanation}</p>
+                        <div class="space-y-1">
+                            ${c.key_takeaways.map(t => `
+                                <div class="text-xs text-slate-400 flex items-start gap-2">
+                                    <i class="fa-solid fa-check text-emerald-400 mt-0.5"></i>
+                                    <span>${t}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Tab 3: Mental Models & Diagrams
+            const diagramsContainer = document.getElementById('diagramsContainer');
+            diagramsContainer.innerHTML = sheet.mental_models.map((m, idx) => `
+                <div class="p-5 rounded-xl bg-slate-900/60 border border-white/5 space-y-3">
+                    <h4 class="text-sm font-bold text-purple-300 flex items-center gap-2">
+                        <i class="fa-solid fa-diagram-next"></i> ${m.title}
+                    </h4>
+                    <p class="text-xs text-slate-300">${m.explanation}</p>
+                    <div class="mermaid p-4 rounded-xl bg-slate-950 border border-white/10 overflow-x-auto text-center" id="mermaid-${idx}">
+                        ${m.code}
+                    </div>
+                </div>
+            `).join('');
+
+            // Tab 4: Active Recall Flashcards
+            const quizContainer = document.getElementById('quizContainer');
+            quizContainer.innerHTML = sheet.active_recall_quiz.map((q, idx) => `
+                <div class="p-5 rounded-xl bg-slate-900/60 border border-white/5 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/20">
+                            ${q.concept_tested}
+                        </span>
+                        <span class="text-xs font-mono text-slate-500">Q${idx + 1}</span>
+                    </div>
+                    <h4 class="text-xs sm:text-sm font-semibold text-white leading-snug">${q.question}</h4>
+                    
+                    <details class="group bg-slate-950/60 rounded-xl border border-white/5 text-xs">
+                        <summary class="p-3 font-medium text-indigo-400 cursor-pointer hover:text-indigo-300 flex items-center justify-between select-none">
+                            <span>Reveal Hint & Answer</span>
+                            <i class="fa-solid fa-chevron-down group-open:rotate-180 transition-transform"></i>
+                        </summary>
+                        <div class="p-4 pt-0 space-y-3 text-slate-300 border-t border-white/5 mt-1">
+                            <p class="text-amber-300/90 italic"><strong class="not-italic text-amber-400">Hint:</strong> ${q.hint}</p>
+                            <p class="text-slate-200 font-normal leading-relaxed">${q.answer}</p>
+                        </div>
+                    </details>
+                </div>
+            `).join('');
+
+            // Tab 5: Raw Markdown
+            document.getElementById('rawMarkdownContent').innerText = sheet.markdown_export;
+
+            // Show Dashboard
+            document.getElementById('notesDashboard').classList.remove('hidden');
+
+            // Render Mermaid Diagrams
+            setTimeout(() => {
+                try {
+                    mermaid.run();
+                } catch (e) {
+                    console.log('Mermaid render error:', e);
+                }
+            }, 100);
+        }
+
+        function parseTimestampSeconds(tsStr) {
+            const clean = tsStr.replace(/\[|\]/g, '').trim();
+            const parts = clean.split(':').map(Number);
+            if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+            if (parts.length === 2) return parts[0] * 60 + parts[1];
+            return 0;
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('border-indigo-500', 'text-white', 'bg-slate-800/60');
+                btn.classList.add('border-transparent', 'text-slate-400');
+            });
+
+            document.getElementById(tabId).classList.remove('hidden');
+            const activeBtn = document.getElementById('btn' + tabId.charAt(0).toUpperCase() + tabId.slice(1));
+            if (activeBtn) {
+                activeBtn.classList.add('border-indigo-500', 'text-white', 'bg-slate-800/60');
+                activeBtn.classList.remove('border-transparent', 'text-slate-400');
+            }
+        }
+
+        function copyMarkdown() {
+            if (!currentNoteData) return;
+            navigator.clipboard.writeText(currentNoteData.study_sheet.markdown_export);
+            alert('Markdown copied to clipboard!');
+        }
+
+        function downloadMarkdown() {
+            if (!currentNoteData) return;
+            const blob = new Blob([currentNoteData.study_sheet.markdown_export], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${currentNoteData.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_notes.md`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        async function loadHistory() {
+            try {
+                const res = await fetch('/api/history');
+                const items = await res.json();
+                const historyList = document.getElementById('historyList');
+                
+                if (items.length === 0) {
+                    historyList.innerHTML = '<p class="text-xs text-slate-500 text-center py-6">No previous notes saved yet.</p>';
+                    return;
+                }
+
+                historyList.innerHTML = items.map(item => `
+                    <div onclick="loadCachedNote('${item.video_id}')" class="p-3 rounded-xl bg-slate-900/60 border border-white/5 hover:border-indigo-500/40 cursor-pointer transition flex items-center gap-3">
+                        <img src="${item.thumbnail_url}" class="w-16 h-10 object-cover rounded-lg">
+                        <div class="flex-1 min-w-0">
+                            <h4 class="text-xs font-semibold text-white truncate">${item.title}</h4>
+                            <p class="text-[10px] text-slate-400">${item.channel}</p>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.log('History load error:', err);
+            }
+        }
+
+        async function loadCachedNote(videoId) {
+            toggleHistoryDrawer();
+            try {
+                const res = await fetch(`/api/notes/${videoId}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('emptyState').classList.add('hidden');
+                    renderNoteSheet(data);
+                }
+            } catch (err) {
+                alert('Could not load note from cache.');
+            }
+        }
+
+        function loadSampleVideo(sampleUrl) {
+            document.getElementById('videoUrl').value = sampleUrl;
+        }
+    </script>
+
+</body>
+</html>
