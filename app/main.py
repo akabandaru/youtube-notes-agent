@@ -27,6 +27,11 @@ app = FastAPI(
 NOTES_DIR = Path("output_notes")
 NOTES_DIR.mkdir(exist_ok=True)
 
+# Export directory for user's markdown files (e.g. Obsidian vault or ~/Documents/learning_notes)
+EXPORT_DIR_SETTING = os.environ.get("NOTES_EXPORT_DIR", str(Path.home() / "Documents" / "learning_notes"))
+EXPORT_DIR = Path(EXPORT_DIR_SETTING)
+EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+
 # Templates setup
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -140,12 +145,22 @@ async def generate_notes(payload: GenerateNotesRequest):
         "study_sheet": study_sheet.model_dump()
     }
 
-    # Save to disk
+    # Save JSON cache to disk
     try:
         with open(cached_file, "w", encoding="utf-8") as f:
             json.dump(response_data, f, indent=2, ensure_ascii=False)
     except Exception as err:
         print(f"Warning: Could not save note to disk cache: {err}")
+
+    # Auto-export Markdown note to user's learning_notes directory
+    try:
+        safe_title = "".join(c if c.isalnum() or c in (" ", "-", "_") else "" for c in metadata["title"]).strip().replace(" ", "_").lower()
+        md_file = EXPORT_DIR / f"{safe_title or video_id}.md"
+        with open(md_file, "w", encoding="utf-8") as f:
+            f.write(study_sheet.markdown_export)
+        print(f"Exported note to: {md_file}")
+    except Exception as err:
+        print(f"Warning: Could not export markdown note: {err}")
 
     return VideoNoteResponse(**response_data)
 
