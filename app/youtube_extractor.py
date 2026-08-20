@@ -55,34 +55,41 @@ class YouTubeExtractor:
     def get_transcript(cls, video_id: str) -> List[Dict[str, Any]]:
         """
         Fetches transcript entries for a video ID using youtube-transcript-api.
-        Returns a list of dicts with 'text', 'start', 'duration', and 'timestamp_str'.
+        Supports both dict and FetchedTranscriptSnippet objects across API versions.
         """
+        api = YouTubeTranscriptApi()
         try:
-            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-            
-            # 1. Try manually created English transcripts
             try:
-                transcript = transcript_list.find_manually_created_transcript(['en', 'en-US', 'en-GB'])
-            except NoTranscriptFound:
-                # 2. Try generated English transcripts
+                # 1. Try instance list method
+                transcript_list = api.list(video_id)
                 try:
-                    transcript = transcript_list.find_generated_transcript(['en', 'en-US', 'en-GB'])
-                except NoTranscriptFound:
-                    # 3. Fallback: Take first available transcript and translate to English
-                    first_transcript = next(iter(transcript_list))
-                    transcript = first_transcript.translate('en')
-                    
-            raw_data = transcript.fetch()
+                    transcript = transcript_list.find_manually_created_transcript(['en', 'en-US', 'en-GB'])
+                except Exception:
+                    try:
+                        transcript = transcript_list.find_generated_transcript(['en', 'en-US', 'en-GB'])
+                    except Exception:
+                        first_transcript = next(iter(transcript_list))
+                        transcript = first_transcript.translate('en')
+                raw_data = transcript.fetch()
+            except Exception:
+                # 2. Fallback to direct fetch
+                raw_data = api.fetch(video_id)
             
             # Enrich entries with formatted timestamp string
             formatted_transcript = []
             for item in raw_data:
-                formatted_transcript.append({
-                    "text": item.get("text", "").strip(),
-                    "start": item.get("start", 0.0),
-                    "duration": item.get("duration", 0.0),
-                    "timestamp_str": cls.format_timestamp(item.get("start", 0.0))
-                })
+                text = getattr(item, "text", "") if hasattr(item, "text") else item.get("text", "")
+                start = getattr(item, "start", 0.0) if hasattr(item, "start") else item.get("start", 0.0)
+                duration = getattr(item, "duration", 0.0) if hasattr(item, "duration") else item.get("duration", 0.0)
+                
+                text_clean = str(text).strip()
+                if text_clean:
+                    formatted_transcript.append({
+                        "text": text_clean,
+                        "start": float(start),
+                        "duration": float(duration),
+                        "timestamp_str": cls.format_timestamp(float(start))
+                    })
                 
             return formatted_transcript
 
