@@ -1,4 +1,5 @@
 import os
+import re
 import json
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
@@ -59,10 +60,42 @@ You follow strict principles of learning science:
 1. **Feynman Technique**: Explain complex concepts using intuitive, simple analogies before diving into technical details. Avoid fluff, filler words, or generic intros.
 2. **Structural Clarity**: Break content down chronologically with exact timestamp references (e.g. [04:20]) so the learner can rewatch specific sections if needed.
 3. **Visual Mental Models**: Provide clean, valid Mermaid.js diagrams (`graph TD` or `graph LR` or `sequenceDiagram`) visualizing system flows, architecture, or causal relationships.
+   - **STRICT MERMAID SYNTAX RULES**:
+     - Always start with `graph TD` or `graph LR`.
+     - ALWAYS put double quotes around ALL node text labels (e.g., `A["Input Data"] --> B["Processing Engine"]`).
+     - Never include raw unquoted parentheses or special characters inside node labels.
+     - Do NOT wrap code in markdown backticks inside the JSON string.
 4. **Active Recall & Spaced Repetition**: Create high-yield self-quiz questions designed to test deep understanding ("Why does X cause Y?") rather than simple recall ("What is X?").
 
 Always make sure the output markdown is clean, elegant, and ready for Obsidian, Notion, or personal note systems.
 """
+
+    @staticmethod
+    def clean_mermaid_code(code: str) -> str:
+        """Sanitizes and formats Mermaid.js code strings for safe browser rendering."""
+        if not code:
+            return 'graph TD\n    A["Start"] --> B["End"]'
+        
+        # Strip markdown code block wrappers
+        code = re.sub(r"^```(?:mermaid)?", "", code.strip(), flags=re.IGNORECASE).strip()
+        code = re.sub(r"```$", "", code).strip()
+        
+        # Ensure valid header exists
+        valid_headers = ("graph ", "flowchart ", "sequencediagram", "classdiagram", "erdiagram", "gantt", "pie", "gitgraph")
+        if not any(code.lower().startswith(h) for h in valid_headers):
+            code = "graph TD\n" + code
+            
+        # Ensure node labels with brackets are properly double-quoted
+        def quote_label(m):
+            node_id = m.group(1)
+            content = m.group(2).strip()
+            if content.startswith('"') and content.endswith('"'):
+                content = content[1:-1]
+            content_clean = content.replace('"', "'")
+            return f'{node_id}["{content_clean}"]'
+
+        code = re.sub(r'([A-Za-z0-9_-]+)\[([^\]]+)\]', quote_label, code)
+        return code
 
     def __init__(self, api_key: Optional[str] = None):
         """
@@ -80,7 +113,7 @@ Always make sure the output markdown is clean, elegant, and ready for Obsidian, 
                        transcript_text: str, 
                        custom_focus: Optional[str] = None) -> GeneratedStudySheet:
         """
-        Generates structured study sheet using Gemini 2.5 Flash.
+        Generates structured study sheet using Gemini 3.6 Flash.
         """
         if not self.client:
             raise RuntimeError(
@@ -103,7 +136,7 @@ REQUIREMENTS FOR THE STUDY SHEET:
 1. **one_sentence_summary**: Single sentence core thesis.
 2. **feynman_explanation**: Explain the main topic in 2-3 paragraphs as if explaining to a curious 12-year-old using memorable analogies.
 3. **chapters**: Break down the video by major timestamp topics. Include exact timestamp tags like `[02:15]`, clear explanation, and key takeaways.
-4. **mental_models**: Provide at least 1 valid Mermaid.js flowchart (`graph TD` or `graph LR`) visualizing the core architecture, data flow, or logical process described in the video.
+4. **mental_models**: Provide at least 1 valid Mermaid.js flowchart (`graph TD` or `graph LR`) visualizing the core architecture, data flow, or logical process described in the video. ALWAYS enclose node text labels in double quotes, e.g. `A["Node Label"]`.
 5. **vocabulary**: Extract 4-8 key technical terms, acronyms, or concepts with simple definitions and real-world analogies.
 6. **active_recall_quiz**: 5-8 flashcard-style Q&A questions testing understanding of 'why' and 'how'.
 7. **markdown_export**: Combine all the above into a beautiful, production-grade Markdown document formatted for Obsidian (with frontmatter metadata tags, headers, Mermaid block code, and collapsible quiz answers using `<details><summary>Hint & Answer</summary>...</details>`).
@@ -123,7 +156,13 @@ REQUIREMENTS FOR THE STUDY SHEET:
 
             # Parse JSON into Pydantic model
             json_data = json.loads(response.text)
-            return GeneratedStudySheet(**json_data)
+            study_sheet = GeneratedStudySheet(**json_data)
+            
+            # Clean up Mermaid diagram code
+            for model in study_sheet.mental_models:
+                model.code = self.clean_mermaid_code(model.code)
+                
+            return study_sheet
 
         except Exception as e:
             raise RuntimeError(f"Error generating notes with Gemini AI: {str(e)}")

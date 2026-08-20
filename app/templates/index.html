@@ -568,11 +568,26 @@
             document.getElementById('notesDashboard').classList.remove('hidden');
 
             // Render Mermaid Diagrams
-            setTimeout(() => {
-                try {
-                    mermaid.run();
-                } catch (e) {
-                    console.log('Mermaid render error:', e);
+            setTimeout(async () => {
+                for (let idx = 0; idx < sheet.mental_models.length; idx++) {
+                    const m = sheet.mental_models[idx];
+                    const container = document.getElementById(`mermaid-${idx}`);
+                    if (!container) continue;
+                    
+                    try {
+                        const renderId = `mermaid-svg-${idx}-${Date.now()}`;
+                        const { svg } = await mermaid.render(renderId, m.code);
+                        container.innerHTML = svg;
+                    } catch (err) {
+                        console.warn('Mermaid render warning:', err);
+                        // Clean fallback display if Mermaid syntax fails
+                        const flowLines = m.code.split('\n').filter(l => l.includes('-->') || l.includes('->'));
+                        if (flowLines.length > 0) {
+                            container.innerHTML = `<div class="font-mono text-xs text-indigo-300 text-left space-y-1.5 bg-slate-900/80 p-4 rounded-lg border border-slate-800">${flowLines.map(l => `<div><i class="fa-solid fa-arrow-right text-indigo-400 mr-2"></i>${l.trim()}</div>`).join('')}</div>`;
+                        } else {
+                            container.innerHTML = `<pre class="font-mono text-xs text-slate-300 text-left overflow-x-auto whitespace-pre-wrap bg-slate-900/80 p-4 rounded-lg">${m.code}</pre>`;
+                        }
+                    }
                 }
             }, 100);
         }
