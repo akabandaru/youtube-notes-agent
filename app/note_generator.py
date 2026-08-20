@@ -111,7 +111,7 @@ REQUIREMENTS FOR THE STUDY SHEET:
 
         try:
             response = self.client.models.generate_content(
-                model="gemini-2.5-flash",
+                model="gemini-3.6-flash",
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=self.SYSTEM_INSTRUCTION,
