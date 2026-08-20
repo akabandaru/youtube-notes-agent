@@ -110,9 +110,8 @@ REQUIREMENTS FOR THE STUDY SHEET:
 """
 
         try:
-            response = self.client.models.generate_content(
+            chat = self.client.chats.create(
                 model="gemini-3.6-flash",
-                contents=prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=self.SYSTEM_INSTRUCTION,
                     response_mime_type="application/json",
@@ -120,6 +119,7 @@ REQUIREMENTS FOR THE STUDY SHEET:
                     temperature=0.3
                 )
             )
+            response = chat.send_message(prompt)
 
             # Parse JSON into Pydantic model
             json_data = json.loads(response.text)
